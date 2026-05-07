@@ -87,6 +87,7 @@ int main(void) {
             CAENRFIDTagList *tags = NULL, *node;
             uint16_t num_tags = 0;
 
+            // Request RSSI alongside the EPC so Tag.RSSI is populated.
             ec = CAENRFID_InventoryTag(&reader, (char *)sources[a],
                                        0, 0, 0, NULL, 0, RSSI,
                                        &tags, &num_tags);
