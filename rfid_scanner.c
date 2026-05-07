@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -11,6 +12,7 @@
 
 #define ANTENNA_COUNT 2
 #define MAX_ID_LENGTH 64
+#define MAX_TAGS_PER_SWEEP 256
 
 // ANSI color codes
 #define GREEN "\033[0;32m"
@@ -73,8 +75,14 @@ int main(void) {
     printf("[RFID] Scanning on %s and %s (scan rate: %dms). Press Ctrl+C to stop.\n\n",
            sources[0], sources[1], scanRate);
 
+    char seen[MAX_TAGS_PER_SWEEP][2 * MAX_ID_LENGTH + 1];
+
     running = 1;
     while (running) {
+        // One "throw" = one pass through all antennas; dedupe per throw so
+        // a tag picked up by Source_0 isn't re-reported by Source_1.
+        int seen_count = 0;
+
         for (int a = 0; a < ANTENNA_COUNT && running; a++) {
             CAENRFIDTagList *tags = NULL, *node;
             uint16_t num_tags = 0;
@@ -88,7 +96,21 @@ int main(void) {
                 while (node != NULL) {
                     char epc[2 * MAX_ID_LENGTH + 1];
                     hex_str(node->Tag.ID, node->Tag.Length, epc);
-                    printf(GREEN "[%s] %s" RESET "\n", sources[a], epc);
+
+                    bool already_seen = false;
+                    for (int i = 0; i < seen_count; i++) {
+                        if (strcmp(seen[i], epc) == 0) {
+                            already_seen = true;
+                            break;
+                        }
+                    }
+
+                    if (!already_seen) {
+                        printf(GREEN "[%s] %s" RESET "\n", sources[a], epc);
+                        if (seen_count < MAX_TAGS_PER_SWEEP) {
+                            strcpy(seen[seen_count++], epc);
+                        }
+                    }
 
                     CAENRFIDTagList *next = node->Next;
                     free(node);
