@@ -75,10 +75,13 @@ int main(void) {
     printf("[RFID] Scanning on %s and %s (scan rate: %dms). Press Ctrl+C to stop.\n\n",
            sources[0], sources[1], scanRate);
 
-    // Per-antenna persistent dedupe: a given EPC is reported at most once
-    // per antenna for the lifetime of this run. Restart the program to reset.
-    static char seen[ANTENNA_COUNT][MAX_TAGS][2 * MAX_ID_LENGTH + 1];
-    int seen_count[ANTENNA_COUNT] = {0};
+    // Global persistent dedupe: a given EPC is reported at most once for
+    // the lifetime of this run, regardless of which antenna spots it.
+    // The two antennas exist purely for coverage; whichever sees the tag
+    // first gets the print, and after that the tag is silent everywhere.
+    // Restart the program to reset.
+    static char seen[MAX_TAGS][2 * MAX_ID_LENGTH + 1];
+    int seen_count = 0;
 
     running = 1;
     while (running) {
@@ -98,8 +101,8 @@ int main(void) {
                     hex_str(node->Tag.ID, node->Tag.Length, epc);
 
                     bool already_seen = false;
-                    for (int i = 0; i < seen_count[a]; i++) {
-                        if (strcmp(seen[a][i], epc) == 0) {
+                    for (int i = 0; i < seen_count; i++) {
+                        if (strcmp(seen[i], epc) == 0) {
                             already_seen = true;
                             break;
                         }
@@ -108,8 +111,8 @@ int main(void) {
                     if (!already_seen) {
                         printf(GREEN "[%s] %s (RSSI: %d dBm)" RESET "\n",
                                sources[a], epc, node->Tag.RSSI);
-                        if (seen_count[a] < MAX_TAGS) {
-                            strcpy(seen[a][seen_count[a]++], epc);
+                        if (seen_count < MAX_TAGS) {
+                            strcpy(seen[seen_count++], epc);
                         }
                     }
 
