@@ -88,7 +88,7 @@ int main(void) {
             uint16_t num_tags = 0;
 
             ec = CAENRFID_InventoryTag(&reader, (char *)sources[a],
-                                       0, 0, 0, NULL, 0, 0,
+                                       0, 0, 0, NULL, 0, RSSI,
                                        &tags, &num_tags);
 
             if (ec == CAENRFID_StatusOK) {
@@ -106,7 +106,8 @@ int main(void) {
                     }
 
                     if (!already_seen) {
-                        printf(GREEN "[%s] %s" RESET "\n", sources[a], epc);
+                        printf(GREEN "[%s] %s (RSSI: %d dBm)" RESET "\n",
+                               sources[a], epc, node->Tag.RSSI);
                         if (seen_count < MAX_TAGS_PER_SWEEP) {
                             strcpy(seen[seen_count++], epc);
                         }
