@@ -12,7 +12,7 @@
 
 #define ANTENNA_COUNT 2
 #define MAX_ID_LENGTH 64
-#define MAX_TAGS_PER_SWEEP 256
+#define MAX_TAGS 1024  // Max unique tags remembered per antenna
 
 // ANSI color codes
 #define GREEN "\033[0;32m"
@@ -75,14 +75,13 @@ int main(void) {
     printf("[RFID] Scanning on %s and %s (scan rate: %dms). Press Ctrl+C to stop.\n\n",
            sources[0], sources[1], scanRate);
 
-    char seen[MAX_TAGS_PER_SWEEP][2 * MAX_ID_LENGTH + 1];
+    // Per-antenna persistent dedupe: a given EPC is reported at most once
+    // per antenna for the lifetime of this run. Restart the program to reset.
+    static char seen[ANTENNA_COUNT][MAX_TAGS][2 * MAX_ID_LENGTH + 1];
+    int seen_count[ANTENNA_COUNT] = {0};
 
     running = 1;
     while (running) {
-        // One "throw" = one pass through all antennas; dedupe per throw so
-        // a tag picked up by Source_0 isn't re-reported by Source_1.
-        int seen_count = 0;
-
         for (int a = 0; a < ANTENNA_COUNT && running; a++) {
             CAENRFIDTagList *tags = NULL, *node;
             uint16_t num_tags = 0;
@@ -99,8 +98,8 @@ int main(void) {
                     hex_str(node->Tag.ID, node->Tag.Length, epc);
 
                     bool already_seen = false;
-                    for (int i = 0; i < seen_count; i++) {
-                        if (strcmp(seen[i], epc) == 0) {
+                    for (int i = 0; i < seen_count[a]; i++) {
+                        if (strcmp(seen[a][i], epc) == 0) {
                             already_seen = true;
                             break;
                         }
@@ -109,8 +108,8 @@ int main(void) {
                     if (!already_seen) {
                         printf(GREEN "[%s] %s (RSSI: %d dBm)" RESET "\n",
                                sources[a], epc, node->Tag.RSSI);
-                        if (seen_count < MAX_TAGS_PER_SWEEP) {
-                            strcpy(seen[seen_count++], epc);
+                        if (seen_count[a] < MAX_TAGS) {
+                            strcpy(seen[a][seen_count[a]++], epc);
                         }
                     }
 
