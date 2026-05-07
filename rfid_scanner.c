@@ -12,10 +12,12 @@
 #define ANTENNA_COUNT 2
 #define MAX_ID_LENGTH 64
 
+// ANSI color codes
 #define GREEN "\033[0;32m"
 #define RESET "\033[0m"
 
 volatile int running = 0;
+volatile int scanRate = 25;
 
 static void hex_str(uint8_t *bytes, uint16_t len, char *out) {
     for (int i = 0; i < len; i++) sprintf(out + (i * 2), "%02X", bytes[i]);
@@ -40,8 +42,8 @@ int main(void) {
     };
 
     RS232_params port_params = {
-        .com         = "/dev/ttyACM0",
-        .baudrate    = 921600,
+        .com         = "/dev/ttyACM0",   // Or /dev/ttyUSB0 depending on your setup
+        .baudrate    = 921600,           // Common CAEN baudrate
         .dataBits    = 8,
         .stopBits    = 1,
         .parity      = 0,
@@ -49,20 +51,27 @@ int main(void) {
     };
 
     const char *sources[ANTENNA_COUNT] = {"Source_0", "Source_1"};
+    int power = 316;  // Start with 140mW (10% on CAEN)
 
     signal(SIGINT, handle_sigint);
 
-    printf("[RFID] Connecting to %s...\n", port_params.com);
+    printf("[RFID] Connecting to CAEN reader on %s at %d baud...\n",
+           port_params.com, port_params.baudrate);
     ec = CAENRFID_Connect(&reader, CAENRFID_RS232, &port_params);
     if (ec != CAENRFID_StatusOK) {
-        printf("[RFID] Connect failed (code %d)\n", ec);
+        printf("[RFID] Connect failed (code %d). Check:\n", ec);
+        printf("  - Is reader connected to %s?\n", port_params.com);
+        printf("  - Try different baudrate (115200, 460800, 921600)\n");
+        printf("  - Check USB permissions: sudo usermod -a -G dialout $USER\n");
+        printf("  - Try: sudo chmod 666 %s\n", port_params.com);
         return -1;
     }
 
-    CAENRFID_SetPower(&reader, 316);
+    CAENRFID_SetPower(&reader, power);
+    printf("[RFID] Power set to %d mW\n", power);
 
-    printf("[RFID] Scanning on %s and %s. Press Ctrl+C to stop.\n\n",
-           sources[0], sources[1]);
+    printf("[RFID] Scanning on %s and %s (scan rate: %dms). Press Ctrl+C to stop.\n\n",
+           sources[0], sources[1], scanRate);
 
     running = 1;
     while (running) {
@@ -87,7 +96,7 @@ int main(void) {
                 }
             }
         }
-        usleep(50 * 1000);
+        usleep(scanRate * 1000);
     }
 
     CAENRFID_Disconnect(&reader);
